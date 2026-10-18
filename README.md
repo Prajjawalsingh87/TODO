@@ -1,11 +1,44 @@
-# React + Vite
+# ✅ Todo — Stay on track
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A clean todo app built with React, the Context API and Tailwind CSS.
 
-Currently, two official plugins are available:
+**🔗 Live:** https://todo-chi-vert.vercel.app
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## ✨ Features
 
-## LINK deployed on vercel
-https://todo-chi-vert.vercel.app/
+- Add, complete, edit and delete todos
+- **Inline editing**: double-click or the edit button; Enter saves, Escape cancels
+- **Filters**: All / Active / Done, with counts
+- Progress bar and "x of y done" summary
+- **Clear completed** in one click
+- Todos are **saved in your browser** (localStorage), so they survive a reload
+- Empty states, keyboard and screen-reader friendly controls, responsive layout
+
+## 🛠 Tech Stack
+
+React 18 · Context API · Vite · Tailwind CSS
+
+## ▶️ Run locally
+
+```bash
+git clone https://github.com/Prajjawalsingh87/TODO.git
+cd TODO
+npm install
+npm run dev        # http://localhost:5173
+```
+
+## 📂 Project structure
+
+```
+src/
+├── App.jsx                 # state, filters, localStorage sync
+├── contexts/TodoContext.js # todo context + useTodo hook
+└── components/
+    ├── TodoForm.jsx        # add a todo
+    ├── TodoItem.jsx        # one todo: toggle, edit, delete
+    └── Icons.jsx
+```
+
+## 🚀 Deployment
+
+Deployed on **Vercel**; every push to `main` deploys to production.
