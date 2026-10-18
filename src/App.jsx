@@ -1,11 +1,30 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import {TodoProvider} from './contexts'
-import './App.css'
 import TodoForm from './components/TodoForm'
 import TodoItem from './components/TodoItem'
+import { ClipboardIcon } from './components/Icons'
+
+const STORAGE_KEY = "todos"
+
+const FILTERS = [
+  { key: "all", label: "All" },
+  { key: "active", label: "Active" },
+  { key: "completed", label: "Done" },
+]
+
+const loadTodos = () => {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY))
+    return Array.isArray(saved) ? saved : []
+  } catch {
+    return []
+  }
+}
 
 function App() {
-  const [todos, setTodos] = useState([])
+  // Read storage once on first render so the save effect never wipes it.
+  const [todos, setTodos] = useState(loadTodos)
+  const [filter, setFilter] = useState("all")
 
   const addTodo = (todo) => {
     setTodos((prev) => [{id: Date.now(), ...todo}, ...prev] )
@@ -13,8 +32,6 @@ function App() {
 
   const updateTodo = (id, todo) => {
     setTodos((prev) => prev.map((prevTodo) => (prevTodo.id === id ? todo : prevTodo )))
-
-    
   }
 
   const deleteTodo = (id) => {
@@ -22,49 +39,128 @@ function App() {
   }
 
   const toggleComplete = (id) => {
-    //console.log(id);
-    setTodos((prev) => 
-    prev.map((prevTodo) => 
-      prevTodo.id === id ? { ...prevTodo, 
+    setTodos((prev) =>
+    prev.map((prevTodo) =>
+      prevTodo.id === id ? { ...prevTodo,
         completed: !prevTodo.completed } : prevTodo))
   }
 
-  useEffect(() => {
-    const todos = JSON.parse(localStorage.getItem("todos"))
-
-    if (todos && todos.length > 0) {
-      setTodos(todos)
-    }
-  }, [])
+  const clearCompleted = () => {
+    setTodos((prev) => prev.filter((todo) => !todo.completed))
+  }
 
   useEffect(() => {
-    localStorage.setItem("todos", JSON.stringify(todos))
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(todos))
   }, [todos])
-  
 
+  const completedCount = todos.filter((t) => t.completed).length
+  const activeCount = todos.length - completedCount
+  const progress = todos.length ? Math.round((completedCount / todos.length) * 100) : 0
 
+  const visibleTodos = useMemo(() => {
+    if (filter === "active") return todos.filter((t) => !t.completed)
+    if (filter === "completed") return todos.filter((t) => t.completed)
+    return todos
+  }, [todos, filter])
+
+  const counts = { all: todos.length, active: activeCount, completed: completedCount }
+
+  const today = new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })
+
+  const emptyCopy = {
+    all: { title: "Nothing here yet", text: "Add your first task above to get started." },
+    active: { title: "All caught up", text: "You have no active tasks. Nice work!" },
+    completed: { title: "No finished tasks", text: "Tasks you complete will show up here." },
+  }[filter]
 
   return (
     <TodoProvider value={{todos, addTodo, updateTodo, deleteTodo, toggleComplete}}>
-      <div className="bg-[#172842] min-h-screen py-8">
-                <div className="w-full max-w-2xl mx-auto shadow-md rounded-lg px-4 py-3 text-white">
-                    <h1 className="text-2xl font-bold text-center mb-8 mt-2">Manage Your Todos</h1>
-                    <div className="mb-4">
-                        {/* Todo form goes here */} 
-                        <TodoForm />
-                    </div>
-                    <div className="flex flex-wrap gap-y-3">
-                        {/*Loop and Add TodoItem here */}
-                        {todos.map((todo) => (
-                          <div key={todo.id}
-                          className='w-full'
-                          >
-                            <TodoItem todo={todo} />
-                          </div>
-                        ))}
-                    </div>
-                </div>
+      <div className="min-h-screen bg-gradient-to-b from-brand-50 via-slate-100 to-slate-100 px-4 py-10 sm:py-16">
+        <main className="mx-auto w-full max-w-xl">
+          <header className="mb-6 flex items-end justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium text-brand-600">{today}</p>
+              <h1 className="mt-1 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">My Tasks</h1>
             </div>
+            {todos.length > 0 && (
+              <p className="shrink-0 text-sm text-slate-500">
+                <span className="font-semibold text-slate-900">{completedCount}</span> of {todos.length} done
+              </p>
+            )}
+          </header>
+
+          <section className="rounded-2xl bg-white p-4 shadow-card sm:p-6">
+            <TodoForm />
+
+            {todos.length > 0 && (
+              <div className="mt-5">
+                <div
+                  className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100"
+                  role="progressbar"
+                  aria-label="Completed tasks"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={progress}
+                >
+                  <div className="h-full rounded-full bg-emerald-500 transition-all duration-500" style={{ width: `${progress}%` }} />
+                </div>
+
+                <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+                  <div className="inline-flex rounded-lg bg-slate-100 p-1" role="tablist" aria-label="Filter todos">
+                    {FILTERS.map((f) => (
+                      <button
+                        key={f.key}
+                        type="button"
+                        role="tab"
+                        aria-selected={filter === f.key}
+                        onClick={() => setFilter(f.key)}
+                        className={`rounded-md px-3 py-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${
+                          filter === f.key ? "bg-white text-slate-900 shadow-sm" : "text-slate-600 hover:text-slate-900"
+                        }`}
+                      >
+                        {f.label}
+                        <span className={`ml-1.5 text-xs ${filter === f.key ? "text-brand-600" : "text-slate-500"}`}>{counts[f.key]}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={clearCompleted}
+                    disabled={completedCount === 0}
+                    className="ml-auto rounded-md px-2 py-1.5 text-sm font-medium text-slate-600 transition hover:text-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 disabled:pointer-events-none disabled:opacity-40"
+                  >
+                    Clear completed
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="mt-4">
+              {visibleTodos.length > 0 ? (
+                <ul className="flex flex-col gap-2">
+                  {visibleTodos.map((todo) => (
+                    <li key={todo.id}>
+                      <TodoItem todo={todo} />
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="flex flex-col items-center rounded-xl border-2 border-dashed border-slate-200 px-6 py-12 text-center">
+                  <span className="mb-3 inline-flex h-12 w-12 items-center justify-center rounded-full bg-brand-50 text-brand-600">
+                    <ClipboardIcon width={24} height={24} />
+                  </span>
+                  <p className="font-semibold text-slate-900">{emptyCopy.title}</p>
+                  <p className="mt-1 text-sm text-slate-500">{emptyCopy.text}</p>
+                </div>
+              )}
+            </div>
+          </section>
+
+          <p className="mt-6 text-center text-xs text-slate-500">
+            {activeCount > 0 ? `${activeCount} task${activeCount === 1 ? "" : "s"} left` : "Saved on this device"} · Double-click a task to edit
+          </p>
+        </main>
+      </div>
     </TodoProvider>
   )
 }
