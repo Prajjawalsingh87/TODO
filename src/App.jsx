@@ -15,7 +15,7 @@ const FILTERS = [
 const loadTodos = () => {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY))
-    return Array.isArray(saved) ? saved : []
+    return Array.isArray(saved) ? saved.filter(t => t && typeof t.todo === "string" && (typeof t.id === "number" || typeof t.id === "string") && typeof t.completed === "boolean") : []
   } catch {
     return []
   }
@@ -25,9 +25,17 @@ function App() {
   // Read storage once on first render so the save effect never wipes it.
   const [todos, setTodos] = useState(loadTodos)
   const [filter, setFilter] = useState("all")
+  const [query, setQuery] = useState("")
+  const [storageError, setStorageError] = useState("")
+  const exportTasks = () => {
+    const url = URL.createObjectURL(new Blob([JSON.stringify(todos, null, 2)], { type: "application/json" }))
+    const link = document.createElement("a")
+    link.href = url; link.download = "my-tasks.json"; link.click()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+  }
 
   const addTodo = (todo) => {
-    setTodos((prev) => [{id: Date.now(), ...todo}, ...prev] )
+    setTodos((prev) => [{id: crypto.randomUUID(), ...todo}, ...prev] )
   }
 
   const updateTodo = (id, todo) => {
@@ -50,7 +58,10 @@ function App() {
   }
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(todos))
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(todos))
+      setStorageError("")
+    } catch { setStorageError("Browser storage is unavailable. Export your tasks to keep a copy.") }
   }, [todos])
 
   const completedCount = todos.filter((t) => t.completed).length
@@ -58,10 +69,10 @@ function App() {
   const progress = todos.length ? Math.round((completedCount / todos.length) * 100) : 0
 
   const visibleTodos = useMemo(() => {
-    if (filter === "active") return todos.filter((t) => !t.completed)
-    if (filter === "completed") return todos.filter((t) => t.completed)
-    return todos
-  }, [todos, filter])
+    return todos.filter(t =>
+      (filter === "all" || (filter === "active" ? !t.completed : t.completed)) &&
+      t.todo.toLowerCase().includes(query.trim().toLowerCase()))
+  }, [todos, filter, query])
 
   const counts = { all: todos.length, active: activeCount, completed: completedCount }
 
@@ -91,6 +102,11 @@ function App() {
 
           <section className="rounded-2xl bg-white p-4 shadow-card sm:p-6">
             <TodoForm />
+            <div className="studio-toolbar">
+              <input className="studio-input" type="search" aria-label="Search tasks" placeholder="Find a task…" value={query} onChange={e => setQuery(e.target.value)} />
+              <button className="studio-button" onClick={exportTasks} disabled={!todos.length}>Export JSON</button>
+            </div>
+            {storageError && <p className="studio-status" role="status">{storageError}</p>}
 
             {todos.length > 0 && (
               <div className="mt-5">
@@ -149,8 +165,8 @@ function App() {
                   <span className="mb-3 inline-flex h-12 w-12 items-center justify-center rounded-full bg-brand-50 text-brand-600">
                     <ClipboardIcon width={24} height={24} />
                   </span>
-                  <p className="font-semibold text-slate-900">{emptyCopy.title}</p>
-                  <p className="mt-1 text-sm text-slate-500">{emptyCopy.text}</p>
+                  <p className="font-semibold text-slate-900">{query ? "No matching tasks" : emptyCopy.title}</p>
+                  <p className="mt-1 text-sm text-slate-500">{query ? "Try another search or change your filter." : emptyCopy.text}</p>
                 </div>
               )}
             </div>
