@@ -16,11 +16,13 @@ A clean todo app built with React, the Context API and Tailwind CSS.
 - **Keyboard shortcuts**: `N` jumps to the new task box, `/` jumps to search
 - **Search**, **Export JSON** and **Import JSON** (validated; duplicates and invalid entries are skipped)
 - Todos are **saved in your browser** (localStorage), so they survive a reload
+- **Installable & offline**: add it to your home screen or desktop with the **Install app** button; it keeps working without a connection
+- **Light / dark theme**: follows your system by default, and the toggle in the top bar remembers your choice
 - Empty states, keyboard and screen-reader friendly controls, responsive layout
 
 ## 🛠 Tech Stack
 
-React 18 · Context API · Vite · Tailwind CSS
+React 18 · Context API · Vite · Tailwind CSS · vite-plugin-pwa (Workbox)
 
 ## ▶️ Run locally
 
@@ -42,7 +44,24 @@ src/
     ├── TodoForm.jsx        # add a todo
     ├── TodoItem.jsx        # one todo: toggle, edit, delete
     └── Icons.jsx
+src/shell/                  # theme toggle + "Install app" button (top bar)
+src/theme.css               # light/dark colour tokens used by tailwind.theme.js
 ```
+
+## 📲 Install & offline (PWA)
+
+`vite-plugin-pwa` generates `manifest.webmanifest` and a Workbox service worker (`sw.js`) at build time.
+The service worker precaches the built app, so it opens offline, and updates itself automatically
+when a new version is deployed. The **Install app** button only appears when the browser offers
+installation (the `beforeinstallprompt` event). Icons (`public/pwa-*.png`, maskable and Apple touch
+icons) are rendered from `public/favicon.svg`. `vercel.json` serves `sw.js`, `registerSW.js` and the
+manifest with `Cache-Control: no-cache` so updates are picked up promptly.
+
+## 🌗 Theme
+
+The app follows `prefers-color-scheme` until you pick a theme with the toggle; the choice is saved
+in `localStorage` (`color-theme`). Dark-mode colours are CSS variables in `src/theme.css`, wired into
+Tailwind by `tailwind.theme.js`, so the light design uses Tailwind's stock colours unchanged.
 
 ## 🚀 Deployment
 

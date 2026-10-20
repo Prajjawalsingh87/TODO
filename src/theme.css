@@ -1,0 +1,35 @@
+/* Colour tokens used by tailwind.theme.js. Values are space-separated RGB. */
+:root {
+  color-scheme: light;
+  --surface: 255 255 255;
+  --slate-50: 248 250 252; --slate-100: 241 245 249; --slate-200: 226 232 240; --slate-300: 203 213 225;
+  --slate-400: 148 163 184; --slate-500: 100 116 139; --slate-600: 71 85 105; --slate-700: 51 65 85;
+  --slate-800: 30 41 59; --slate-900: 15 23 42; --slate-950: 2 6 23;
+  --indigo-50: 238 242 255; --indigo-100: 224 231 255;
+  --rose-50: 255 241 242; --rose-100: 255 228 230;
+  --amber-50: 255 251 235; --amber-100: 254 243 199;
+  --emerald-50: 236 253 245; --emerald-100: 209 250 229;
+  --text-indigo-600: 79 70 229; --text-indigo-700: 67 56 202; --text-indigo-800: 55 48 163; --text-indigo-900: 49 46 129;
+  --text-rose-600: 225 29 72; --text-rose-700: 190 18 60; --text-rose-800: 159 18 57; --text-rose-900: 136 19 55;
+  --text-amber-600: 217 119 6; --text-amber-700: 180 83 9; --text-amber-800: 146 64 14; --text-amber-900: 120 53 15;
+  --text-emerald-600: 5 150 105; --text-emerald-700: 4 120 87; --text-emerald-800: 6 95 70; --text-emerald-900: 6 78 59;
+  --text-lime-700: 77 124 15;
+}
+
+/* Dark: deep blue-grey instead of black, off-white text, every text pair >= 4.5:1. */
+[data-theme="dark"] {
+  color-scheme: dark;
+  --surface: 26 35 53;
+  --slate-50: 20 28 45; --slate-100: 15 22 37; --slate-200: 42 53 72; --slate-300: 58 70 91;
+  --slate-400: 131 145 167; --slate-500: 154 166 184; --slate-600: 176 188 205; --slate-700: 200 209 222;
+  --slate-800: 221 227 236; --slate-900: 229 234 242; --slate-950: 243 246 250;
+  --indigo-50: 35 42 77; --indigo-100: 44 52 98;
+  --rose-50: 59 29 40; --rose-100: 76 36 51;
+  --amber-50: 54 42 20; --amber-100: 71 55 26;
+  --emerald-50: 18 54 43; --emerald-100: 23 69 54;
+  --text-indigo-600: 165 180 252; --text-indigo-700: 165 180 252; --text-indigo-800: 199 210 254; --text-indigo-900: 224 231 255;
+  --text-rose-600: 253 164 175; --text-rose-700: 253 164 175; --text-rose-800: 254 205 211; --text-rose-900: 254 205 211;
+  --text-amber-600: 252 211 77; --text-amber-700: 252 211 77; --text-amber-800: 253 230 138; --text-amber-900: 253 230 138;
+  --text-emerald-600: 110 231 183; --text-emerald-700: 110 231 183; --text-emerald-800: 167 243 208; --text-emerald-900: 167 243 208;
+  --text-lime-700: 190 242 100;
+}
