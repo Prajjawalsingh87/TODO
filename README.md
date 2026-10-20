@@ -11,6 +11,10 @@ A clean todo app built with React, the Context API and Tailwind CSS.
 - **Filters**: All / Active / Done, with counts
 - Progress bar and "x of y done" summary
 - **Clear completed** in one click
+- **Due dates** with tasks grouped into Overdue / Today / Upcoming / No due date / Done, plus an overdue count
+- **Priority** (low / medium / high) badges, and sorting by newest, priority or due date
+- **Keyboard shortcuts**: `N` jumps to the new task box, `/` jumps to search
+- **Search**, **Export JSON** and **Import JSON** (validated; duplicates and invalid entries are skipped)
 - Todos are **saved in your browser** (localStorage), so they survive a reload
 - Empty states, keyboard and screen-reader friendly controls, responsive layout
 
@@ -31,7 +35,8 @@ npm run dev        # http://localhost:5173
 
 ```
 src/
-├── App.jsx                 # state, filters, localStorage sync
+├── App.jsx                 # state, filters, grouping, import/export, shortcuts
+├── todoUtils.js            # validation, due-date groups, sorting, import merge
 ├── contexts/TodoContext.js # todo context + useTodo hook
 └── components/
     ├── TodoForm.jsx        # add a todo
