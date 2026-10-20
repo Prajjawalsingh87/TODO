@@ -30,3 +30,9 @@ Thumbs.db
 
 # Optional
 coverage/
+.vercel
+.env*
+
+.vercel/
+
+.code-review-graph/

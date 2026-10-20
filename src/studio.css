@@ -1,0 +1,29 @@
+
+/* Shared visual language: indigo, slate, generous space, accessible controls. */
+:root {
+  --studio-bg: #f6f7fb;
+  --studio-ink: #172033;
+  --studio-accent: #4f46e5;
+  --studio-line: #e2e6ef;
+}
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; font-family: Inter, ui-sans-serif, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+button, input, select, textarea { font: inherit; }
+button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+:focus-visible { outline: 3px solid #818cf8; outline-offset: 3px; }
+button:disabled { cursor: not-allowed; }
+.studio-bar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1.1rem clamp(1rem, 5vw, 4rem); border-bottom: 1px solid var(--studio-line); background: #fff; color: var(--studio-ink); }
+.studio-bar a { color: #4338ca; text-decoration: none; font-weight: 700; font-size: .85rem; }
+.studio-bar span { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .16em; color: #64748b; }
+.studio-page { min-height: 100vh; background: var(--studio-bg); color: var(--studio-ink); }
+.studio-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: .65rem; margin: 1.25rem 0; }
+.studio-input { min-width: 0; flex: 1; border: 1px solid var(--studio-line); border-radius: .8rem; padding: .75rem 1rem; background: #fff; color: #172033; }
+.studio-button { display: inline-flex; align-items: center; justify-content: center; gap: .4rem; border: 1px solid var(--studio-line); border-radius: .8rem; padding: .65rem 1rem; background: #fff; color: #4338ca; font-size: .875rem; font-weight: 600; cursor: pointer; text-decoration: none; }
+.studio-button:hover { background: #eef2ff; border-color: #a5b4fc; }
+.studio-button[aria-pressed="true"], .studio-primary { background: #4f46e5; border-color: #4f46e5; color: #fff; }
+.studio-primary:hover { background: #4338ca; color: #fff; }
+.studio-note { font-size: .8rem; line-height: 1.6; color: #64748b; }
+.studio-status { padding: .7rem 1rem; margin-top: .8rem; border-radius: .7rem; background: #eef2ff; color: #3730a3; font-size: .85rem; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}
