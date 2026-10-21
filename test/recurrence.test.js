@@ -51,6 +51,14 @@ describe("nextOccurrence", () => {
   })
 })
 
+describe("series ids", () => {
+  it("never grow when the series was lost (e.g. edited occurrence)", () => {
+    let todo = { id: "abc~2026-10-21", todo: "x", priority: "low", due: "2026-10-21", repeat: { freq: "daily" } }
+    for (let i = 0; i < 20; i++) todo = { ...nextOccurrence(todo, todo.due), repeat: { freq: "daily" } }
+    expect(todo.id).toMatch(/^abc~\d{4}-\d{2}-\d{2}$/)
+  })
+})
+
 describe("normalizeRepeat", () => {
   it("validates rules", () => {
     expect(normalizeRepeat(null)).toBeNull()

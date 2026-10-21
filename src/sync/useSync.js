@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { generateCode, normalizeCode } from "./code.js"
 import { normalizeRecord, toRecords } from "./records.js"
+import { syncClock } from "./clock.js"
 
 // Offline-first sync: the app always reads and writes localStorage; when a sync
 // code is set, the full record list is pushed to /api/sync and the merged list
@@ -37,6 +38,7 @@ class SyncError extends Error {
 
 async function pushAndPull(code, records, create) {
   let res
+  const sentAt = Date.now()
   try {
     res = await fetch("/api/sync", {
       method: "POST",
@@ -51,13 +53,15 @@ async function pushAndPull(code, records, create) {
   if (res.status === 429) throw new SyncError("Too many sync requests. Trying again shortly.", 429)
   if (res.status === 413) throw new SyncError(body?.error || "Too much data to sync.", 413)
   if (!res.ok || !Array.isArray(body?.records)) throw new SyncError("Sync failed. Your tasks are safe on this device.", res.status)
-  return body.records.map(normalizeRecord).filter(Boolean)
+  const serverTime = Number.isSafeInteger(body.serverTime) ? body.serverTime : null
+  if (serverTime !== null) syncClock(serverTime, sentAt)
+  return { records: body.records.map(normalizeRecord).filter(Boolean), serverTime }
 }
 
 /**
  * @param data      current { todos, tombstones }
  * @param localRev  bumps on every local edit (not on remote updates)
- * @param onRemote  (records) => void, merges server records into state
+ * @param onRemote  (records, serverTime) => void, merges server records into state
  */
 export default function useSync({ data, localRev, onRemote }) {
   const [code, setCode] = useState(() => normalizeCode(read(CODE_KEY) || ""))
@@ -79,8 +83,8 @@ export default function useSync({ data, localRev, onRemote }) {
     lastAttempt.current = Date.now()
     setStatus("syncing")
     try {
-      const records = await pushAndPull(syncCode, toRecords(dataRef.current), create)
-      onRemoteRef.current(records)
+      const { records, serverTime } = await pushAndPull(syncCode, toRecords(dataRef.current), create)
+      onRemoteRef.current(records, serverTime)
       const now = Date.now()
       setLastSynced(now)
       write(LAST_KEY, String(now))

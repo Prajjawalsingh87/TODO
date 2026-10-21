@@ -121,3 +121,14 @@ describe("sync codes", () => {
     expect(formatCode("ABCDEFGHJKMNPQRSTVWXYZ0123")).toBe("ABCDEF-GHJKM-NPQRS-TVWXY-Z0123")
   })
 })
+
+describe("clock skew", () => {
+  it("a local record stamped beyond the server's limit yields to the server copy", () => {
+    const serverTime = 1_000_000
+    const merged = byId(mergeRecords([task("a", serverTime + 86_400_000, { todo: "stale fast clock" })], [task("a", serverTime - 5, { todo: "server" })], serverTime))
+    expect(merged.a.todo).toBe("server")
+    // ...but a normal newer local edit still wins
+    const normal = byId(mergeRecords([task("a", serverTime + 10, { todo: "local" })], [task("a", serverTime - 5, { todo: "server" })], serverTime))
+    expect(normal.a.todo).toBe("local")
+  })
+})

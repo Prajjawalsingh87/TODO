@@ -1,10 +1,12 @@
 // Recurring tasks: daily, weekly on chosen weekdays, or monthly on a day of the month.
 // Dates are local "YYYY-MM-DD" strings, the same format the due-date field uses.
 
+import { clockNow } from "./sync/clock.js"
+
 export const REPEAT_FREQS = ["daily", "weekly", "monthly"]
 export const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 
-const SERIES_RE = /^[A-Za-z0-9_.:@-]{1,80}$/
+const SERIES_RE = /^[A-Za-z0-9_.:@-]{1,100}$/
 
 const parse = (iso) => {
   const [y, m, d] = iso.split("-").map(Number)
@@ -63,8 +65,9 @@ export const firstDue = (rule, todayISO) => nextDue(rule, addDays(todayISO, -1))
  * Its id is derived from the series and date, so two devices completing the
  * same task offline create the same next task instead of a duplicate.
  */
-export const nextOccurrence = (todo, todayISO, now = Date.now()) => {
-  const series = todo.repeat.series || String(todo.id)
+export const nextOccurrence = (todo, todayISO, now = clockNow()) => {
+  // Occurrence ids are "series~YYYY-MM-DD"; strip the date so a series id never grows.
+  const series = todo.repeat.series || String(todo.id).replace(/~\d{4}-\d{2}-\d{2}$/, "")
   const base = todo.due && todo.due > todayISO ? todo.due : todayISO
   const due = nextDue(todo.repeat, base)
   return {

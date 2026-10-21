@@ -1,4 +1,5 @@
 import { normalizeRepeat } from "./recurrence.js"
+import { clockNow } from "./sync/clock.js"
 
 export const PRIORITIES = ["low", "medium", "high"]
 export const PRIORITY_RANK = { high: 0, medium: 1, low: 2 }
@@ -45,7 +46,7 @@ export const normalizeTodo = (raw) => {
 }
 
 /** Timestamp for an edit: now, but always newer than the version it replaces. */
-export const stamp = (prev, now = Date.now()) => Math.max(now, (prev?.updatedAt || 0) + 1)
+export const stamp = (prev, now = clockNow()) => Math.max(now, (prev?.updatedAt || 0) + 1)
 
 const newId = () =>
   typeof crypto !== "undefined" && crypto.randomUUID
@@ -70,7 +71,7 @@ export const loadSaved = (text, now = Date.now()) => {
  * Accepts an array of todos (our export format) or `{ todos: [...] }`.
  * Returns { todos, added, skipped } or throws an Error with a friendly message.
  */
-export const mergeImport = (text, current, now = Date.now()) => {
+export const mergeImport = (text, current, now = clockNow()) => {
   let data
   try {
     data = JSON.parse(text)

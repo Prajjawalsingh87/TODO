@@ -96,6 +96,26 @@ describe("POST /api/sync", () => {
     expect(res.body.records[0].updatedAt).toBe(clock + LIMITS.futureSkewMs)
   })
 
+  it("a clamped future timestamp never overwrites a stored task", async () => {
+    const code = generateCode()
+    // Device A (clock a day fast) creates the task; it's stored clamped.
+    await call(code, { create: true, records: [task("a", clock + 86_400_000, { todo: "A fast" })] })
+    // Device B edits it with a normal timestamp just above the stored value.
+    clock += 1000
+    const stored = (await call(code, { records: [] })).body.records[0].updatedAt
+    await call(code, { records: [task("a", stored + 1, { todo: "B edit" })] })
+    // A syncs later with its stale far-future copy: B's edit must survive.
+    clock += 60_000
+    const res = await call(code, { records: [task("a", clock + 86_400_000, { todo: "A fast" })] })
+    expect(res.body.records[0].todo).toBe("B edit")
+  })
+
+  it("a clamped record still creates a task the server doesn't have", async () => {
+    const code = generateCode()
+    const res = await call(code, { create: true, records: [task("n", clock + 86_400_000)] })
+    expect(res.body.records.map((r) => r.id)).toEqual(["n"])
+  })
+
   it("validates the payload", async () => {
     const code = generateCode()
     expect((await call(code, "{nope")).status).toBe(400)

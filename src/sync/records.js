@@ -8,6 +8,8 @@ import { ID_RE, normalizeTodo } from "../todoUtils.js"
 
 export const MAX_RECORDS = 5000
 export const MAX_BODY_BYTES = 1024 * 1024
+/** The server clamps updatedAt values further ahead of its clock than this. */
+export const FUTURE_SKEW_MS = 5 * 60 * 1000
 
 /** Validate one record from the network. Returns a clean record or null. */
 export const normalizeRecord = (raw) => {
@@ -42,17 +44,26 @@ export const fromRecords = (records) => {
 export const wins = (incoming, current, winTies = false) =>
   !current || incoming.updatedAt > current.updatedAt || (winTies && incoming.updatedAt === current.updatedAt)
 
-/** Last-write-wins merge of two record lists. Remote wins ties. */
-export const mergeRecords = (local, remote) => {
+/**
+ * Last-write-wins merge of two record lists. Remote wins ties.
+ * With `serverTime`, local records stamped further in the future than the server
+ * accepts (written while this device's clock ran fast) lose to the server copy;
+ * the server never lets such records overwrite what it has.
+ */
+export const mergeRecords = (local, remote, serverTime = null) => {
   const byId = new Map()
   for (const r of local) if (wins(r, byId.get(r.id))) byId.set(r.id, r)
-  for (const r of remote) if (wins(r, byId.get(r.id), true)) byId.set(r.id, r)
+  const limit = Number.isFinite(serverTime) ? serverTime + FUTURE_SKEW_MS : Infinity
+  for (const r of remote) {
+    const current = byId.get(r.id)
+    if (wins(r, current, true) || current.updatedAt > limit) byId.set(r.id, r)
+  }
   return [...byId.values()]
 }
 
 /** Merge remote records into app state; returns `state` itself when nothing changed. */
-export const applyRemote = (state, remote) => {
-  const next = fromRecords(mergeRecords(toRecords(state), remote))
+export const applyRemote = (state, remote, serverTime = null) => {
+  const next = fromRecords(mergeRecords(toRecords(state), remote, serverTime))
   return fingerprint(next) === fingerprint(state) ? state : next
 }
 

@@ -12,9 +12,11 @@ function RepeatPicker({ value, onChange, due, label = true }) {
   const freq = value?.freq || ""
 
   const setFreq = (next) => {
+    // Keep the series id so later occurrences still share one id prefix.
+    const series = value?.series ? { series: value.series } : {}
     if (!next) onChange(null)
-    else if (next === "weekly") onChange({ freq: "weekly", days: [weekdayOf(due)] })
-    else onChange({ freq: next })
+    else if (next === "weekly") onChange({ ...series, freq: "weekly", days: [weekdayOf(due)] })
+    else onChange({ ...series, freq: next })
   }
 
   const toggleDay = (day) => {

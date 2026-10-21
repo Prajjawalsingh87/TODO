@@ -7,6 +7,7 @@ import { ClipboardIcon } from './components/Icons'
 import { SORTS, groupTodos, loadSaved, mergeImport, sortTodos, stamp, toISODate } from './todoUtils'
 import { firstDue, nextOccurrence, withAnchor } from './recurrence'
 import { applyRemote } from './sync/records'
+import { clockNow } from './sync/clock'
 import { normalizeCode } from './sync/code'
 import useSync from './sync/useSync'
 import useDueReminders from './useDueReminders'
@@ -126,7 +127,7 @@ function App() {
   }
 
   const addTodo = (todo) => {
-    const now = Date.now()
+    const now = clockNow()
     edit((prev) => ({
       ...prev,
       todos: [withSchedule({ id: crypto.randomUUID(), due: "", priority: "medium", repeat: null, ...todo, createdAt: now, updatedAt: now }), ...prev.todos],
@@ -141,7 +142,7 @@ function App() {
   }
 
   const removeWhere = (prev, test) => {
-    const now = Date.now()
+    const now = clockNow()
     const tombstones = { ...prev.tombstones }
     const todos = prev.todos.filter((t) => {
       if (!test(t)) return true
@@ -177,7 +178,7 @@ function App() {
     } catch { setStorageError("Browser storage is unavailable. Export your tasks to keep a copy.") }
   }, [data])
 
-  const onRemote = useCallback((records) => setData((prev) => applyRemote(prev, records)), [])
+  const onRemote = useCallback((records, serverTime) => setData((prev) => applyRemote(prev, records, serverTime)), [])
   const sync = useSync({ data, localRev, onRemote })
   const reminders = useDueReminders(todos)
   const clearLinkCode = useCallback(() => setLinkCode(null), [])

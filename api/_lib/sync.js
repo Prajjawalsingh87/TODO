@@ -10,13 +10,13 @@
 // task on updatedAt (ties keep the stored copy), and deletes are tombstones.
 import { createHash } from "node:crypto"
 import { normalizeCode } from "../../src/sync/code.js"
-import { MAX_BODY_BYTES, MAX_RECORDS, normalizeRecord } from "../../src/sync/records.js"
+import { FUTURE_SKEW_MS, MAX_BODY_BYTES, MAX_RECORDS, normalizeRecord } from "../../src/sync/records.js"
 
 export const LIMITS = {
   requestsPerMinute: 60, // per IP, all sync requests
   createsPerHour: 10, // per IP, new sync spaces
   maxStoredRecords: 10000, // per sync code, tasks + tombstones
-  futureSkewMs: 5 * 60 * 1000, // updatedAt further ahead than this is clamped
+  futureSkewMs: FUTURE_SKEW_MS, // updatedAt further ahead than this is clamped and can't overwrite
 }
 
 export const SCHEMA = [
@@ -106,11 +106,15 @@ export function createSyncHandler({ getDb, now = Date.now, random = Math.random,
     for (let i = 0; i < body.records.length; i++) {
       const record = normalizeRecord(body.records[i])
       if (!record) return { error: `Invalid record at index ${i}` }
-      if (record.updatedAt > maxTime) record.updatedAt = maxTime
+      // A fast clock must not win forever: clamp, and only use it for tasks the server lacks.
+      if (record.updatedAt > maxTime) {
+        record.updatedAt = maxTime
+        record.clamped = true
+      }
       const seen = byId.get(record.id)
       if (!seen || record.updatedAt > seen.updatedAt) byId.set(record.id, record)
     }
-    return { records: [...byId.values()] }
+    return { records: [...byId.values()].map(({ clamped, ...r }) => ({ record: r, clamped: clamped === true })) }
   }
 
   return async function handle(request) {
@@ -139,7 +143,7 @@ export function createSyncHandler({ getDb, now = Date.now, random = Math.random,
       if (error) return error
       const valid = validateRecords(body)
       if (valid.error) return json(valid.status || 400, { error: valid.error })
-      const { records } = valid
+      const records = valid.records.map((v) => v.record)
 
       const existing = await db.query(
         "UPDATE sync_spaces SET last_seen = now() WHERE code_hash = $1 RETURNING code_hash",
@@ -167,8 +171,13 @@ export function createSyncHandler({ getDb, now = Date.now, random = Math.random,
            FROM jsonb_to_recordset($2::jsonb) AS r(id text, "updatedAt" bigint, deleted boolean, data jsonb)
            ON CONFLICT (code_hash, task_id) DO UPDATE
              SET updated_at = excluded.updated_at, deleted = excluded.deleted, data = excluded.data
-             WHERE excluded.updated_at > sync_tasks.updated_at`,
-          [codeHash, JSON.stringify(records.map((r) => ({ id: r.id, updatedAt: r.updatedAt, deleted: r.deleted === true, data: r })))],
+             WHERE excluded.updated_at > sync_tasks.updated_at
+               AND NOT (excluded.task_id = ANY($3::text[]))`, // clamped records ($3) only fill gaps
+          [
+            codeHash,
+            JSON.stringify(records.map((r) => ({ id: r.id, updatedAt: r.updatedAt, deleted: r.deleted === true, data: r }))),
+            valid.records.filter((v) => v.clamped).map((v) => v.record.id),
+          ],
         )
       }
 
