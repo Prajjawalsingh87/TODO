@@ -1,8 +1,14 @@
+import { normalizeRepeat } from "./recurrence.js"
+
 export const PRIORITIES = ["low", "medium", "high"]
 export const PRIORITY_RANK = { high: 0, medium: 1, low: 2 }
 export const MAX_TEXT = 200
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+/** Task ids: UUIDs, old numeric ids, and "series~date" ids of repeat occurrences. */
+export const ID_RE = /^[A-Za-z0-9_.:~@-]{1,120}$/
+
+const isTimestamp = (n) => Number.isSafeInteger(n) && n >= 0
 
 /** Local date as YYYY-MM-DD (not UTC, so "today" matches the user's clock). */
 export const toISODate = (date = new Date()) => {
@@ -25,15 +31,21 @@ export const normalizeTodo = (raw) => {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null
   const text = typeof raw.todo === "string" ? raw.todo.trim().slice(0, MAX_TEXT) : ""
   if (!text) return null
-  const id = typeof raw.id === "string" || typeof raw.id === "number" ? raw.id : null
+  const id = typeof raw.id === "string" || typeof raw.id === "number" ? String(raw.id) : null
   return {
-    id,
+    id: id !== null && ID_RE.test(id) ? id : null,
     todo: text,
     completed: raw.completed === true,
     due: isValidDate(raw.due) ? raw.due : "",
     priority: PRIORITIES.includes(raw.priority) ? raw.priority : "medium",
+    repeat: normalizeRepeat(raw.repeat),
+    createdAt: isTimestamp(raw.createdAt) ? raw.createdAt : null,
+    updatedAt: isTimestamp(raw.updatedAt) ? raw.updatedAt : 0,
   }
 }
+
+/** Timestamp for an edit: now, but always newer than the version it replaces. */
+export const stamp = (prev, now = Date.now()) => Math.max(now, (prev?.updatedAt || 0) + 1)
 
 const newId = () =>
   typeof crypto !== "undefined" && crypto.randomUUID
@@ -41,11 +53,13 @@ const newId = () =>
     : `${Date.now()}-${Math.random().toString(36).slice(2)}`
 
 /** Read todos from localStorage text. Bad entries are dropped. */
-export const loadSaved = (text) => {
+export const loadSaved = (text, now = Date.now()) => {
   try {
     const saved = JSON.parse(text)
     if (!Array.isArray(saved)) return []
-    return saved.map(normalizeTodo).filter(Boolean).map((t) => ({ ...t, id: t.id ?? newId() }))
+    // Older saves have no createdAt; keep their newest-first order.
+    return saved.map(normalizeTodo).filter(Boolean)
+      .map((t, i) => ({ ...t, id: t.id ?? newId(), createdAt: t.createdAt ?? now - i }))
   } catch {
     return []
   }
@@ -56,7 +70,7 @@ export const loadSaved = (text) => {
  * Accepts an array of todos (our export format) or `{ todos: [...] }`.
  * Returns { todos, added, skipped } or throws an Error with a friendly message.
  */
-export const mergeImport = (text, current) => {
+export const mergeImport = (text, current, now = Date.now()) => {
   let data
   try {
     data = JSON.parse(text)
@@ -80,7 +94,8 @@ export const mergeImport = (text, current) => {
     const id = todo.id ?? newId()
     ids.add(String(id))
     seenText.add(todo.todo.toLowerCase())
-    incoming.push({ ...todo, id })
+    // A fresh updatedAt makes imported tasks win over older copies (or deletions) when syncing.
+    incoming.push({ ...todo, id, createdAt: todo.createdAt ?? now - incoming.length, updatedAt: now })
   }
   if (list.length && invalid === list.length) {
     throw new Error("No valid tasks found. Each task needs a \"todo\" text.")
@@ -112,8 +127,11 @@ export const SORTS = [
 
 /** Stable sort; ties keep the original (newest first) order. */
 export const sortTodos = (todos, sort) => {
-  if (sort === "added") return todos
   const indexed = todos.map((t, i) => [t, i])
+  if (sort === "added") {
+    indexed.sort(([a, ai], [b, bi]) => (b.createdAt || 0) - (a.createdAt || 0) || ai - bi)
+    return indexed.map(([t]) => t)
+  }
   const byDue = (a, b) => (a.due || "9999-99-99").localeCompare(b.due || "9999-99-99")
   const byPriority = (a, b) => PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority]
   indexed.sort(([a, ai], [b, bi]) => {

@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTodo } from '../contexts/TodoContext';
-import { CheckIcon, PencilIcon, TrashIcon, XIcon } from './Icons';
+import { CheckIcon, PencilIcon, RepeatIcon, TrashIcon, XIcon } from './Icons';
+import RepeatPicker from './RepeatPicker';
+import { repeatLabel } from '../recurrence';
 import { MAX_TEXT, PRIORITIES, PRIORITY_STYLE, capitalize, dueGroup, dueLabel, fieldClass, toISODate } from '../todoUtils';
 
 const DUE_STYLE = {
@@ -17,6 +19,7 @@ function TodoItem({ todo }) {
   const [todoMsg, setTodoMsg] = useState(todo.todo)
   const [due, setDue] = useState(todo.due || "")
   const [priority, setPriority] = useState(todo.priority || "medium")
+  const [repeat, setRepeat] = useState(todo.repeat || null)
   const {updateTodo, deleteTodo, toggleComplete} = useTodo()
   const inputRef = useRef(null)
 
@@ -25,8 +28,9 @@ function TodoItem({ todo }) {
       setTodoMsg(todo.todo)
       setDue(todo.due || "")
       setPriority(todo.priority || "medium")
+      setRepeat(todo.repeat || null)
     }
-  }, [todo.todo, todo.due, todo.priority, isTodoEditable])
+  }, [todo.todo, todo.due, todo.priority, todo.repeat, isTodoEditable])
 
   useEffect(() => {
     if (isTodoEditable) {
@@ -41,7 +45,7 @@ function TodoItem({ todo }) {
       cancelEdit()
       return
     }
-    updateTodo(todo.id, {...todo, todo: text, due, priority})
+    updateTodo(todo.id, {...todo, todo: text, due, priority, repeat})
     setIsTodoEditable(false)
   }
 
@@ -55,13 +59,16 @@ function TodoItem({ todo }) {
   }
 
   const group = todo.completed ? "done" : dueGroup(todo, toISODate())
+  const overdue = group === "overdue"
 
   return (
       <div
           className={`group flex items-start gap-3 rounded-xl border px-3 py-2.5 transition ${
               isTodoEditable
                 ? "border-brand-500 bg-white ring-4 ring-brand-100"
-                : "border-slate-200 bg-white hover:border-slate-300"
+                : overdue
+                  ? "border-rose-100 bg-rose-50 hover:border-rose-300"
+                  : "border-slate-200 bg-white hover:border-slate-300"
           }`}
       >
           <button
@@ -98,6 +105,7 @@ function TodoItem({ todo }) {
                           <select aria-label="Priority" className={fieldClass} value={priority} onChange={(e) => setPriority(e.target.value)}>
                               {PRIORITIES.map((p) => <option key={p} value={p}>{capitalize(p)}</option>)}
                           </select>
+                          <RepeatPicker value={repeat} onChange={setRepeat} due={due} label={false} />
                       </div>
                   </>
               ) : (
@@ -118,6 +126,12 @@ function TodoItem({ todo }) {
                               <time dateTime={todo.due} className={`font-medium ${todo.completed ? "text-slate-400" : DUE_STYLE[group]}`}>
                                   <span className="sr-only">Due </span>{dueLabel(todo.due, toISODate())}
                               </time>
+                          )}
+                          {todo.repeat && (
+                              <span className="inline-flex items-center gap-1 font-medium text-slate-500" title="Completing it schedules the next one">
+                                  <RepeatIcon width={13} height={13} />
+                                  <span className="sr-only">Repeats </span>{repeatLabel(todo.repeat)}
+                              </span>
                           )}
                       </div>
                   </>
