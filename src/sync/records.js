@@ -49,6 +49,11 @@ export const wins = (incoming, current, winTies = false) =>
  * With `serverTime`, local records stamped further in the future than the server
  * accepts (written while this device's clock ran fast) lose to the server copy;
  * the server never lets such records overwrite what it has.
+ *
+ * Policy: such a record can't be told apart from a stale copy written under a fast
+ * clock (which must not win), so when the server already has the task its copy is
+ * kept and the far-future local edit is discarded. Timestamps follow the server
+ * clock (see clock.js), so this only happens after a large, uncorrected clock jump.
  */
 export const mergeRecords = (local, remote, serverTime = null) => {
   const byId = new Map()

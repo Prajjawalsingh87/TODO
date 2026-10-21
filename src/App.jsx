@@ -178,6 +178,7 @@ function App() {
     } catch { setStorageError("Browser storage is unavailable. Export your tasks to keep a copy.") }
   }, [data])
 
+  // Server records win over local ones stamped too far in the future (see mergeRecords).
   const onRemote = useCallback((records, serverTime) => setData((prev) => applyRemote(prev, records, serverTime)), [])
   const sync = useSync({ data, localRev, onRemote })
   const reminders = useDueReminders(todos)

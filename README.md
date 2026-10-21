@@ -101,6 +101,10 @@ How it works:
 - Abuse limits: 60 requests/minute and 10 new codes/hour per IP (counted in Postgres under a hashed
   IP), bodies up to 1 MB, up to 5,000 records per request and 10,000 per code, strict per-field
   validation, and `updatedAt` values more than 5 minutes in the future are clamped.
+- Clock skew: timestamps follow the server clock (offset learned from each sync whose round trip is
+  under 10 s). A record stamped more than 5 minutes ahead of the server can create a task the server
+  doesn't have, but never overwrites one it does; in that case the device takes the server copy and
+  that far-future edit is dropped. This stops a fast clock from repeatedly overwriting other devices.
 
 Storage: [Neon](https://neon.tech) Postgres (free tier, `sin1`) added with
 `vercel integration add neon -m region=sin1`, which sets `DATABASE_URL` for the project. Tables

@@ -132,3 +132,14 @@ describe("clock skew", () => {
     expect(normal.a.todo).toBe("local")
   })
 })
+
+describe("clock offset", () => {
+  it("ignores responses with a slow round trip", async () => {
+    const { clockNow, syncClock } = await import("../src/sync/clock.js")
+    const t = Date.now()
+    syncClock(t + 60_000, t - 30_000, t) // 30 s RTT: ignored
+    expect(Math.abs(clockNow() - Date.now())).toBeLessThan(1000)
+    syncClock(t + 60_000, t - 100, t) // fast RTT: adopted
+    expect(clockNow() - Date.now()).toBeGreaterThan(59_000)
+  })
+})

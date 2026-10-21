@@ -3,6 +3,8 @@
 // fast or slow doesn't win or lose last-write-wins comparisons unfairly.
 const KEY = "todo-clock-offset"
 const MAX_OFFSET = 365 * 24 * 60 * 60 * 1000
+// A slow round trip makes the midpoint estimate unreliable; keep the previous offset then.
+const MAX_RTT_MS = 10 * 1000
 
 let offset = 0
 try {
@@ -16,7 +18,7 @@ export const clockNow = () => Math.round(Date.now() + offset)
 
 /** Learn the offset from a response's serverTime, assuming it was read halfway through the request. */
 export const syncClock = (serverTime, sentAt, receivedAt = Date.now()) => {
-  if (!Number.isFinite(serverTime)) return
+  if (!Number.isFinite(serverTime) || receivedAt - sentAt > MAX_RTT_MS) return
   const next = serverTime - (sentAt + receivedAt) / 2
   if (Math.abs(next) >= MAX_OFFSET) return
   offset = next
