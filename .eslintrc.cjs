@@ -4,5 +4,6 @@ module.exports = {
   parserOptions: { ecmaVersion: 'latest', sourceType: 'module' },
   settings: { react: { version: 'detect' } },
   ignorePatterns: ['dist', 'node_modules'],
-  rules: { 'react/prop-types': 'off' }
+  rules: { 'react/prop-types': 'off' },
+  overrides: [{ files: ['api/**/*.js', 'test/**/*.js', '*.config.js'], env: { node: true } }]
 };

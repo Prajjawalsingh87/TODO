@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import { useTodo } from '../contexts/TodoContext';
 import { PlusIcon } from './Icons';
+import RepeatPicker from './RepeatPicker';
 import { MAX_TEXT, PRIORITIES, capitalize, fieldClass } from '../todoUtils';
 
 function TodoForm() {
     const [todo, setTodo] = useState("")
     const [due, setDue] = useState("")
     const [priority, setPriority] = useState("medium")
+    const [repeat, setRepeat] = useState(null)
     const {addTodo} = useTodo()
 
     const add = (e) => {
@@ -15,10 +17,11 @@ function TodoForm() {
       const text = todo.trim()
       if (!text) return
 
-      addTodo({ todo: text, completed: false, due, priority })
+      addTodo({ todo: text, completed: false, due, priority, repeat })
       setTodo("")
       setDue("")
       setPriority("medium")
+      setRepeat(null)
     }
 
   return (
@@ -56,6 +59,7 @@ function TodoForm() {
                       {PRIORITIES.map((p) => <option key={p} value={p}>{capitalize(p)}</option>)}
                   </select>
               </label>
+              <RepeatPicker value={repeat} onChange={setRepeat} due={due} />
           </div>
       </form>
   );

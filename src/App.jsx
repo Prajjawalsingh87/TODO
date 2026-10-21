@@ -1,11 +1,20 @@
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import {TodoProvider} from './contexts'
 import TodoForm from './components/TodoForm'
 import TodoItem from './components/TodoItem'
+import SyncPanel from './components/SyncPanel'
 import { ClipboardIcon } from './components/Icons'
-import { SORTS, groupTodos, loadSaved, mergeImport, sortTodos, toISODate } from './todoUtils'
+import { SORTS, groupTodos, loadSaved, mergeImport, sortTodos, stamp, toISODate } from './todoUtils'
+import { firstDue, nextOccurrence, withAnchor } from './recurrence'
+import { applyRemote } from './sync/records'
+import { clockNow } from './sync/clock'
+import { normalizeCode } from './sync/code'
+import useSync from './sync/useSync'
+import useDueReminders from './useDueReminders'
 
 const STORAGE_KEY = "todos"
+// Deleted task ids -> deletion time, so deletes reach other synced devices.
+const TOMBSTONE_KEY = "todo-tombstones"
 
 const FILTERS = [
   { key: "all", label: "All" },
@@ -15,20 +24,47 @@ const FILTERS = [
 
 const MAX_IMPORT_BYTES = 1024 * 1024
 
-const loadTodos = () => {
+const loadData = () => {
+  let todos = []
+  let tombstones = {}
   try {
-    return loadSaved(localStorage.getItem(STORAGE_KEY))
+    todos = loadSaved(localStorage.getItem(STORAGE_KEY))
+    const saved = JSON.parse(localStorage.getItem(TOMBSTONE_KEY) || "{}")
+    if (saved && typeof saved === "object" && !Array.isArray(saved)) {
+      tombstones = Object.fromEntries(Object.entries(saved).filter(([, t]) => Number.isSafeInteger(t) && t >= 0))
+    }
   } catch {
-    return []
+    // Storage unavailable or corrupt: start empty.
   }
+  return { todos, tombstones }
 }
+
+/** Repeating tasks always have a due date; monthly rules remember the day of the month. */
+const withSchedule = (todo, today = toISODate()) => {
+  if (!todo.repeat) return { ...todo, repeat: null }
+  const due = todo.due || firstDue(todo.repeat, today)
+  return { ...todo, due, repeat: withAnchor(todo.repeat, due) }
+}
+
+/** A sync link from a scanned QR code: /#sync=CODE. Removed from the address bar right away. */
+const readLinkCode = () => {
+  const match = window.location.hash.match(/^#sync=([A-Za-z0-9-]+)$/)
+  if (!match) return null
+  window.history.replaceState(null, "", window.location.pathname + window.location.search)
+  return normalizeCode(match[1])
+}
+const initialLinkCode = readLinkCode()
 
 const isTyping = (el) =>
   el instanceof HTMLElement && (el.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName))
 
 function App() {
   // Read storage once on first render so the save effect never wipes it.
-  const [todos, setTodos] = useState(loadTodos)
+  const [data, setData] = useState(loadData)
+  const { todos } = data
+  // Bumped on every local edit so sync knows to push (remote updates don't bump it).
+  const [localRev, setLocalRev] = useState(0)
+  const [linkCode, setLinkCode] = useState(initialLinkCode)
   const [filter, setFilter] = useState("all")
   const [query, setQuery] = useState("")
   const [sort, setSort] = useState("added")
@@ -63,7 +99,11 @@ function App() {
     }
     try {
       const result = mergeImport(await file.text(), todos)
-      setTodos(result.todos)
+      edit((prev) => {
+        const imported = new Set(result.todos.map((t) => t.id))
+        const tombstones = Object.fromEntries(Object.entries(prev.tombstones).filter(([id]) => !imported.has(id)))
+        return { todos: result.todos.map((t) => (t.repeat ? withSchedule(t) : t)), tombstones }
+      })
       setImportStatus({
         error: false,
         text: `Imported ${result.added} task${result.added === 1 ? "" : "s"}` +
@@ -80,35 +120,69 @@ function App() {
     setTimeout(() => URL.revokeObjectURL(url), 1000)
   }
 
+  // Every local change goes through here so sync knows there is something to push.
+  const edit = (fn) => {
+    setData(fn)
+    setLocalRev((r) => r + 1)
+  }
+
   const addTodo = (todo) => {
-    setTodos((prev) => [{id: crypto.randomUUID(), due: "", priority: "medium", ...todo}, ...prev] )
+    const now = clockNow()
+    edit((prev) => ({
+      ...prev,
+      todos: [withSchedule({ id: crypto.randomUUID(), due: "", priority: "medium", repeat: null, ...todo, createdAt: now, updatedAt: now }), ...prev.todos],
+    }))
   }
 
   const updateTodo = (id, todo) => {
-    setTodos((prev) => prev.map((prevTodo) => (prevTodo.id === id ? todo : prevTodo )))
+    edit((prev) => ({
+      ...prev,
+      todos: prev.todos.map((t) => (t.id === id ? withSchedule({ ...todo, updatedAt: stamp(t) }) : t)),
+    }))
   }
 
-  const deleteTodo = (id) => {
-    setTodos((prev) => prev.filter((todo) => todo.id !== id))
+  const removeWhere = (prev, test) => {
+    const now = clockNow()
+    const tombstones = { ...prev.tombstones }
+    const todos = prev.todos.filter((t) => {
+      if (!test(t)) return true
+      tombstones[t.id] = stamp(t, now)
+      return false
+    })
+    return { todos, tombstones }
   }
+
+  const deleteTodo = (id) => edit((prev) => removeWhere(prev, (t) => t.id === id))
 
   const toggleComplete = (id) => {
-    setTodos((prev) =>
-    prev.map((prevTodo) =>
-      prevTodo.id === id ? { ...prevTodo,
-        completed: !prevTodo.completed } : prevTodo))
+    edit((prev) => {
+      const todo = prev.todos.find((t) => t.id === id)
+      if (!todo) return prev
+      const todos = prev.todos.map((t) => (t.id === id ? { ...t, completed: !t.completed, updatedAt: stamp(t) } : t))
+      // Completing a repeating task schedules the next one (once, even if re-completed).
+      if (!todo.completed && todo.repeat) {
+        const next = nextOccurrence(todo, toISODate())
+        if (!todos.some((t) => t.id === next.id) && !(next.id in prev.tombstones)) todos.unshift(next)
+      }
+      return { ...prev, todos }
+    })
   }
 
-  const clearCompleted = () => {
-    setTodos((prev) => prev.filter((todo) => !todo.completed))
-  }
+  const clearCompleted = () => edit((prev) => removeWhere(prev, (t) => t.completed))
 
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(todos))
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data.todos))
+      localStorage.setItem(TOMBSTONE_KEY, JSON.stringify(data.tombstones))
       setStorageError("")
     } catch { setStorageError("Browser storage is unavailable. Export your tasks to keep a copy.") }
-  }, [todos])
+  }, [data])
+
+  // Server records win over local ones stamped too far in the future (see mergeRecords).
+  const onRemote = useCallback((records, serverTime) => setData((prev) => applyRemote(prev, records, serverTime)), [])
+  const sync = useSync({ data, localRev, onRemote })
+  const reminders = useDueReminders(todos)
+  const clearLinkCode = useCallback(() => setLinkCode(null), [])
 
   const completedCount = todos.filter((t) => t.completed).length
   const activeCount = todos.length - completedCount
@@ -251,8 +325,10 @@ function App() {
             </div>
           </section>
 
+          <SyncPanel sync={sync} reminders={reminders} pendingCode={linkCode} onPendingHandled={clearLinkCode} />
+
           <p className="mt-6 text-center text-xs text-slate-500">
-            {activeCount > 0 ? `${activeCount} task${activeCount === 1 ? "" : "s"} left` : "Saved on this device"} · Double-click a task to edit
+            {activeCount > 0 ? `${activeCount} task${activeCount === 1 ? "" : "s"} left` : sync.code ? "Saved here and synced" : "Saved on this device"} · Double-click a task to edit
           </p>
           <p className="mt-2 text-center text-xs text-slate-500">
             Shortcuts: <kbd className="rounded border border-slate-300 bg-white px-1.5 font-sans">N</kbd> new task · <kbd className="rounded border border-slate-300 bg-white px-1.5 font-sans">/</kbd> search
